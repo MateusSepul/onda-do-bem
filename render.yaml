@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: ondadobem-backend
+    runtime: docker
+    dockerfilePath: Dockerfile
+    plan: free
+    region: ohio
+    healthCheckPath: /api/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: supabase
+      - key: SUPABASE_DB_URL
+        value: jdbc:postgresql://aws-1-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require
+      - key: SUPABASE_DB_USER
+        value: postgres.fljmkiiffvkdciysweme
+      - key: SUPABASE_DB_PASSWORD
+        value: 123ondadobem
+      - key: APP_JWT_SECRET
+        generateValue: true

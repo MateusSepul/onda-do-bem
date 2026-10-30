@@ -1,0 +1,609 @@
+/**
+ * Onda do Bem — Create Post Screen
+ *
+ * Formulário interativo para publicar uma nova ação positiva na rede.
+ * Suporta tirar foto com a câmera, escolher da galeria ou usar imagens de exemplo.
+ * Atualiza o feed em tempo real com os dados digitados.
+ */
+
+import React, { useState } from 'react';
+import {
+  View,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  Pressable,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+
+import { useAppTheme } from '@/hooks/use-theme';
+import { useFeedStore } from '@/store/feed.store';
+import { AppText } from '@/components/ui/text';
+import { AppButton } from '@/components/ui/button';
+import { Spacing, BorderRadius, FontWeight } from '@/constants/theme';
+import { PostCategory } from '@/types/entities';
+import { CATEGORY_INFO } from '@/constants/mock-data';
+
+const SAMPLE_PHOTO_PRESETS = [
+  {
+    label: 'Praia / Oceano',
+    url: 'https://images.unsplash.com/photo-1618477461853-cf6ed80faba5?w=800&auto=format&fit=crop',
+  },
+  {
+    label: 'Árvores / Floresta',
+    url: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=800&auto=format&fit=crop',
+  },
+  {
+    label: 'Horta / Alimentos',
+    url: 'https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=800&auto=format&fit=crop',
+  },
+  {
+    label: 'Animais / Resgate',
+    url: 'https://images.unsplash.com/photo-1548767797-d8c844163c4c?w=800&auto=format&fit=crop',
+  },
+  {
+    label: 'Reciclagem',
+    url: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=800&auto=format&fit=crop',
+  },
+];
+
+export default function CreatePostScreen() {
+  const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const addPost = useFeedStore((s) => s.addPost);
+
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [category, setCategory] = useState<PostCategory>(PostCategory.TREE_PLANTING);
+  const [locationName, setLocationName] = useState('');
+  const [impactScore, setImpactScore] = useState('25');
+  const [selectedPhoto, setSelectedPhoto] = useState(SAMPLE_PHOTO_PRESETS[1].url);
+  const [isCustomPhoto, setIsCustomPhoto] = useState(false);
+  const [photoPicking, setPhotoPicking] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleTakePhoto = async () => {
+    try {
+      setPhotoPicking(true);
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permissão Necessária',
+          'Para tirar fotos da sua ação ecológica, precisamos de acesso à câmera do seu dispositivo.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.85,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setSelectedPhoto(result.assets[0].uri);
+        setIsCustomPhoto(true);
+      }
+    } catch {
+      Alert.alert('Erro', 'Não foi possível abrir a câmera no momento.');
+    } finally {
+      setPhotoPicking(false);
+    }
+  };
+
+  const handlePickFromGallery = async () => {
+    try {
+      setPhotoPicking(true);
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permissão Necessária',
+          'Para escolher fotos da sua ação, precisamos de acesso à sua galeria de imagens.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.85,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setSelectedPhoto(result.assets[0].uri);
+        setIsCustomPhoto(true);
+      }
+    } catch {
+      Alert.alert('Erro', 'Não foi possível acessar a galeria no momento.');
+    } finally {
+      setPhotoPicking(false);
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setSelectedPhoto(SAMPLE_PHOTO_PRESETS[1].url);
+    setIsCustomPhoto(false);
+  };
+
+  const handleSubmit = () => {
+    if (!title.trim()) {
+      Alert.alert('Atenção', 'Por favor, informe o título da sua ação.');
+      return;
+    }
+    if (!description.trim()) {
+      Alert.alert('Atenção', 'Escreva uma breve descrição de como foi essa ação.');
+      return;
+    }
+
+    setLoading(true);
+
+    addPost({
+      title: title.trim(),
+      description: description.trim(),
+      category,
+      locationName: locationName.trim() || 'Minha Cidade',
+      impactScore: parseInt(impactScore, 10) || 10,
+      imageUrl: selectedPhoto,
+    });
+
+    setLoading(false);
+    // Limpa campos e volta para o feed
+    setTitle('');
+    setDescription('');
+    setSelectedPhoto(SAMPLE_PHOTO_PRESETS[1].url);
+    setIsCustomPhoto(false);
+    router.replace('/(tabs)');
+  };
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top }]}>
+      {/* Top Header */}
+      <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+        <AppText variant="h3" weight="bold">
+          Publicar Ação do Bem ✨
+        </AppText>
+        <AppText variant="caption" color="secondary">
+          Compartilhe seu impacto com a comunidade
+        </AppText>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Título */}
+        <View style={styles.formGroup}>
+          <AppText variant="label" weight="semibold" style={styles.label}>
+            Título da Ação *
+          </AppText>
+          <TextInput
+            placeholder="Ex: Plantio comunitário de 30 mudas nativas"
+            placeholderTextColor={theme.textMuted}
+            value={title}
+            onChangeText={setTitle}
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.border,
+                color: theme.text,
+              },
+            ]}
+          />
+        </View>
+
+        {/* Categoria */}
+        <View style={styles.formGroup}>
+          <AppText variant="label" weight="semibold" style={styles.label}>
+            Categoria de Impacto
+          </AppText>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
+            {Object.entries(CATEGORY_INFO).map(([catKey, meta]) => {
+              const isSelected = category === catKey;
+              return (
+                <Pressable
+                  key={catKey}
+                  onPress={() => setCategory(catKey as PostCategory)}
+                  style={[
+                    styles.categoryChip,
+                    {
+                      backgroundColor: isSelected ? meta.color : theme.surface,
+                      borderColor: isSelected ? meta.color : theme.border,
+                    },
+                  ]}
+                >
+                  <AppText
+                    variant="caption"
+                    weight={isSelected ? 'bold' : 'medium'}
+                    style={{ color: isSelected ? '#FFFFFF' : theme.text }}
+                  >
+                    {meta.emoji} {meta.label}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* Descrição */}
+        <View style={styles.formGroup}>
+          <AppText variant="label" weight="semibold" style={styles.label}>
+            Descrição da Ação *
+          </AppText>
+          <TextInput
+            placeholder="Conte os detalhes da ação, quem participou, o que foi recolhido ou transformado..."
+            placeholderTextColor={theme.textMuted}
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+            style={[
+              styles.textArea,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.border,
+                color: theme.text,
+              },
+            ]}
+          />
+        </View>
+
+        {/* Localização & Pontos de Impacto */}
+        <View style={styles.rowInputs}>
+          <View style={[styles.formGroup, { flex: 2 }]}>
+            <AppText variant="label" weight="semibold" style={styles.label}>
+              Localização
+            </AppText>
+            <TextInput
+              placeholder="Ex: Praia da Joaquina, SC"
+              placeholderTextColor={theme.textMuted}
+              value={locationName}
+              onChangeText={setLocationName}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                  color: theme.text,
+                },
+              ]}
+            />
+          </View>
+
+          <View style={[styles.formGroup, { flex: 1 }]}>
+            <AppText variant="label" weight="semibold" style={styles.label}>
+              Impacto (+pts)
+            </AppText>
+            <TextInput
+              placeholder="Ex: 50"
+              placeholderTextColor={theme.textMuted}
+              value={impactScore}
+              onChangeText={setImpactScore}
+              keyboardType="numeric"
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                  color: theme.text,
+                },
+              ]}
+            />
+          </View>
+        </View>
+
+        {/* Foto da Ação (Câmera, Galeria ou Exemplo) */}
+        <View style={styles.formGroup}>
+          <View style={styles.photoHeaderRow}>
+            <AppText variant="label" weight="semibold" style={styles.label}>
+              Foto da Ação
+            </AppText>
+            {isCustomPhoto ? (
+              <View style={styles.customBadge}>
+                <Ionicons name="checkmark-circle" size={13} color="#10B981" />
+                <AppText variant="caption" weight="semibold" style={styles.customBadgeText}>
+                  Foto do Seu Dispositivo
+                </AppText>
+              </View>
+            ) : null}
+          </View>
+
+          {/* Botões de Ação para Câmera e Galeria */}
+          <View style={styles.photoActionsRow}>
+            <Pressable
+              onPress={handleTakePhoto}
+              disabled={photoPicking}
+              style={({ pressed }) => [
+                styles.photoActionButton,
+                {
+                  backgroundColor: theme.surfaceElevated,
+                  borderColor: isCustomPhoto ? theme.primary : theme.border,
+                },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <View style={[styles.photoActionIconBox, { backgroundColor: theme.primaryLight }]}>
+                {photoPicking ? (
+                  <ActivityIndicator size="small" color={theme.primary} />
+                ) : (
+                  <Ionicons name="camera" size={20} color={theme.primary} />
+                )}
+              </View>
+              <View style={styles.photoActionTextBox}>
+                <AppText variant="bodySm" weight="bold" style={{ color: theme.text }}>
+                  Tirar Foto
+                </AppText>
+                <AppText variant="caption" color="muted">
+                  Abrir câmera
+                </AppText>
+              </View>
+            </Pressable>
+
+            <Pressable
+              onPress={handlePickFromGallery}
+              disabled={photoPicking}
+              style={({ pressed }) => [
+                styles.photoActionButton,
+                {
+                  backgroundColor: theme.surfaceElevated,
+                  borderColor: theme.border,
+                },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <View style={[styles.photoActionIconBox, { backgroundColor: theme.surface }]}>
+                <Ionicons name="images" size={20} color={theme.textSecondary} />
+              </View>
+              <View style={styles.photoActionTextBox}>
+                <AppText variant="bodySm" weight="bold" style={{ color: theme.text }}>
+                  Galeria
+                </AppText>
+                <AppText variant="caption" color="muted">
+                  Escolher foto
+                </AppText>
+              </View>
+            </Pressable>
+          </View>
+
+          {/* Container de Preview da Foto */}
+          <View style={[styles.photoPreviewContainer, { borderColor: theme.border }]}>
+            <Image
+              source={{ uri: selectedPhoto }}
+              style={styles.photoPreview}
+              contentFit="cover"
+              transition={300}
+            />
+
+            {/* Overlay Badge */}
+            <View style={styles.previewOverlayBadge}>
+              <Ionicons
+                name={isCustomPhoto ? 'camera' : 'sparkles'}
+                size={13}
+                color="#FFFFFF"
+              />
+              <AppText variant="caption" style={styles.previewBadgeText}>
+                {isCustomPhoto ? 'Foto Capturada' : 'Foto de Exemplo'}
+              </AppText>
+            </View>
+
+            {/* Botão para trocar ou remover foto customizada */}
+            {isCustomPhoto && (
+              <Pressable
+                onPress={handleRemovePhoto}
+                style={styles.removePhotoBtn}
+                hitSlop={8}
+              >
+                <Ionicons name="close-circle" size={28} color="#FFFFFF" />
+              </Pressable>
+            )}
+          </View>
+
+          {/* Opções Rápidas de Exemplo (Presets) */}
+          <View style={styles.presetsContainer}>
+            <AppText variant="caption" color="muted" style={styles.presetsTitle}>
+              Ou selecione uma foto de exemplo:
+            </AppText>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presetsRow}>
+              {SAMPLE_PHOTO_PRESETS.map((preset) => {
+                const isSelected = !isCustomPhoto && selectedPhoto === preset.url;
+                return (
+                  <Pressable
+                    key={preset.label}
+                    onPress={() => {
+                      setSelectedPhoto(preset.url);
+                      setIsCustomPhoto(false);
+                    }}
+                    style={[
+                      styles.presetButton,
+                      {
+                        borderColor: isSelected ? theme.primary : theme.border,
+                        backgroundColor: isSelected ? theme.primaryLight : theme.surface,
+                      },
+                    ]}
+                  >
+                    <AppText
+                      variant="caption"
+                      weight={isSelected ? 'bold' : 'regular'}
+                      style={{ color: isSelected ? theme.primary : theme.textSecondary }}
+                    >
+                      {preset.label}
+                    </AppText>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+
+        {/* Botão de Publicar */}
+        <AppButton
+          title="Publicar Ação no Feed 🌊"
+          size="lg"
+          variant="primary"
+          loading={loading}
+          onPress={handleSubmit}
+          style={styles.submitBtn}
+        />
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+  },
+  scrollContent: {
+    padding: Spacing.md,
+    paddingBottom: Spacing['3xl'],
+  },
+  formGroup: {
+    marginBottom: Spacing.md,
+  },
+  label: {
+    marginBottom: Spacing.xs,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    fontSize: 15,
+  },
+  textArea: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    fontSize: 15,
+    minHeight: 90,
+  },
+  chipsScroll: {
+    marginTop: 4,
+  },
+  categoryChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    marginRight: Spacing.xs,
+  },
+  rowInputs: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  photoHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.xs,
+  },
+  customBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+    gap: 4,
+  },
+  customBadgeText: {
+    color: '#10B981',
+    fontSize: 11,
+  },
+  photoActionsRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  photoActionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    gap: Spacing.sm,
+  },
+  photoActionIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoActionTextBox: {
+    flex: 1,
+  },
+  photoPreviewContainer: {
+    width: '100%',
+    height: 200,
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#0F172A',
+    borderWidth: 1,
+  },
+  photoPreview: {
+    width: '100%',
+    height: '100%',
+  },
+  previewOverlayBadge: {
+    position: 'absolute',
+    bottom: Spacing.sm,
+    left: Spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    gap: 4,
+  },
+  previewBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: FontWeight.medium,
+  },
+  removePhotoBtn: {
+    position: 'absolute',
+    top: Spacing.sm,
+    right: Spacing.sm,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    borderRadius: BorderRadius.full,
+  },
+  presetsContainer: {
+    marginTop: Spacing.sm,
+  },
+  presetsTitle: {
+    marginBottom: 4,
+  },
+  presetsRow: {
+    marginTop: 2,
+  },
+  presetButton: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginRight: Spacing.xs,
+  },
+  submitBtn: {
+    marginTop: Spacing.md,
+  },
+});
